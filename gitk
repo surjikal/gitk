@@ -289,12 +289,18 @@ proc parseviewargs {n arglist} {
 }
 
 proc parseviewrevs {view revs} {
-    global vposids vnegids
+    global vposids vnegids showallstashes
 
     if {$revs eq {}} {
         set revs HEAD
     } elseif {[lsearch -exact $revs --all] >= 0} {
         lappend revs HEAD
+        if {$showallstashes} {
+            set stashesfd [open [concat | git stash list --pretty=format:%H] r]
+            while {[gets $stashesfd stashline] >= 0} {
+                lappend revs $stashline
+            }
+        }
     }
     if {[catch {set ids [eval exec git rev-parse $revs]} err]} {
         # we get stdout followed by stderr in $err
@@ -1778,13 +1784,19 @@ proc readrefs {} {
     global tagids idtags headids idheads tagobjid
     global otherrefids idotherrefs mainhead mainheadid
     global selecthead selectheadid
-    global hideremotes
+    global hideremotes showallstashes
     global tclencoding
 
     foreach v {tagids idtags headids idheads otherrefids idotherrefs} {
         unset -nocomplain $v
     }
-    set refd [open [list | git show-ref -d] r]
+
+    if {[tk windowingsystem] eq {aqua}} {
+        set refd [open [list | git show-ref -d] r]
+    } else {
+        set refd [open [list | git show-ref -d | grep -v { refs/stash}] r]
+    }
+
     if {$tclencoding != {}} {
         fconfigure $refd -encoding $tclencoding
     }
@@ -1820,6 +1832,20 @@ proc readrefs {} {
         }
     }
     catch {close $refd}
+
+    if {$showallstashes} {
+        set stashesidsrefsfd [open [list | git stash list {--pretty=format:%H %gD}] r]
+        while {[gets $stashesidsrefsfd line] >= 0} {
+            if {[string index $line 40] ne " "} continue
+            set id [string range $line 0 39]
+            set ref [string range $line 41 end]
+            set name [string range $ref 5 end]
+            set otherrefids($name) $id
+            lappend idotherrefs($id) $name
+        }
+        catch {close $stashesidsrefsfd}
+    }
+
     set mainhead {}
     set mainheadid {}
     catch {
@@ -12372,6 +12398,7 @@ set maxrefs 20
 set visiblerefs {"master"}
 set maxlinelen 200
 set showlocalchanges 1
+set showallstashes 0
 set limitdiffs 1
 set datetimeformat "%Y-%m-%d %H:%M:%S"
 set autoselect 1
