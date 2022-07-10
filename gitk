@@ -11575,7 +11575,7 @@ proc create_prefs_page {w} {
 }
 
 proc prefspage_general {notebook} {
-    global NS maxwidth maxgraphpct showneartags showlocalchanges
+    global NS maxwidth maxgraphpct showneartags showlocalchanges showallstashes
     global tabstop limitdiffs autoselect autosellen extdifftool perfile_attrs
     global hideremotes want_ttk have_ttk maxrefs web_browser
 
@@ -11601,6 +11601,9 @@ proc prefspage_general {notebook} {
     ${NS}::checkbutton $page.hideremotes -text [mc "Hide remote refs"] \
         -variable hideremotes
     grid x $page.hideremotes -sticky w
+    ${NS}::checkbutton $page.showallstashes -text [mc "Show all stashes"] \
+        -variable showallstashes
+    grid x $page.showallstashes -sticky w
 
     ${NS}::label $page.ddisp -text [mc "Diff display options"]
     grid $page.ddisp - -sticky w -pady 10
@@ -11722,7 +11725,7 @@ proc prefspage_fonts {notebook} {
 
 proc doprefs {} {
     global maxwidth maxgraphpct use_ttk NS
-    global oldprefs prefstop showneartags showlocalchanges
+    global oldprefs prefstop showneartags showlocalchanges showallstashes
     global uicolor bgcolor fgcolor ctext diffcolors selectbgcolor markbgcolor
     global tabstop limitdiffs autoselect autosellen extdifftool perfile_attrs
     global hideremotes want_ttk have_ttk
@@ -11733,7 +11736,7 @@ proc doprefs {} {
         raise $top
         return
     }
-    foreach v {maxwidth maxgraphpct showneartags showlocalchanges \
+    foreach v {maxwidth maxgraphpct showneartags showlocalchanges showallstashes \
                    limitdiffs tabstop perfile_attrs hideremotes want_ttk} {
         set oldprefs($v) [set $v]
     }
@@ -11871,7 +11874,7 @@ proc prefscan {} {
 
 proc prefsok {} {
     global maxwidth maxgraphpct
-    global oldprefs prefstop showneartags showlocalchanges
+    global oldprefs prefstop showneartags showlocalchanges showallstashes
     global fontpref mainfont textfont uifont
     global limitdiffs treediffs perfile_attrs
     global hideremotes
@@ -11906,6 +11909,9 @@ proc prefsok {} {
         } else {
             dohidelocalchanges
         }
+    }
+    if {$showallstashes != $oldprefs(showallstashes)} {
+        reloadcommits
     }
     if {$limitdiffs != $oldprefs(limitdiffs) ||
         ($perfile_attrs && !$oldprefs(perfile_attrs))} {
@@ -12499,7 +12505,7 @@ config_check_tmp_exists 50
 set config_variables {
     mainfont textfont uifont tabstop findmergefiles maxgraphpct maxwidth
     cmitmode wrapcomment autoselect autosellen showneartags maxrefs visiblerefs
-    hideremotes showlocalchanges datetimeformat limitdiffs uicolor want_ttk
+    hideremotes showlocalchanges showallstashes datetimeformat limitdiffs uicolor want_ttk
     bgcolor fgcolor uifgcolor uifgdisabledcolor colors diffcolors mergecolors
     markbgcolor diffcontext selectbgcolor foundbgcolor currentsearchhitbgcolor
     extdifftool perfile_attrs headbgcolor headfgcolor headoutlinecolor
