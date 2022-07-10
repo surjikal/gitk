@@ -289,12 +289,18 @@ proc parseviewargs {n arglist} {
 }
 
 proc parseviewrevs {view revs} {
-    global vposids vnegids
+    global vposids vnegids showallstashes
 
     if {$revs eq {}} {
         set revs HEAD
     } elseif {[lsearch -exact $revs --all] >= 0} {
         lappend revs HEAD
+        if {$showallstashes} {
+            set stashesfd [open [concat | git stash list --pretty=format:%H] r]
+            while {[gets $stashesfd stashline] >= 0} {
+                lappend revs $stashline
+            }
+        }
     }
     if {[catch {set ids [eval exec git rev-parse $revs]} err]} {
         # we get stdout followed by stderr in $err
@@ -1778,13 +1784,19 @@ proc readrefs {} {
     global tagids idtags headids idheads tagobjid
     global otherrefids idotherrefs mainhead mainheadid
     global selecthead selectheadid
-    global hideremotes
+    global hideremotes showallstashes
     global tclencoding
 
     foreach v {tagids idtags headids idheads otherrefids idotherrefs} {
         unset -nocomplain $v
     }
-    set refd [open [list | git show-ref -d] r]
+
+    if {[tk windowingsystem] eq {aqua}} {
+        set refd [open [list | git show-ref -d] r]
+    } else {
+        set refd [open [list | git show-ref -d | grep -v { refs/stash}] r]
+    }
+
     if {$tclencoding != {}} {
         fconfigure $refd -encoding $tclencoding
     }
@@ -1820,6 +1832,20 @@ proc readrefs {} {
         }
     }
     catch {close $refd}
+
+    if {$showallstashes} {
+        set stashesidsrefsfd [open [list | git stash list {--pretty=format:%H %gD}] r]
+        while {[gets $stashesidsrefsfd line] >= 0} {
+            if {[string index $line 40] ne " "} continue
+            set id [string range $line 0 39]
+            set ref [string range $line 41 end]
+            set name [string range $ref 5 end]
+            set otherrefids($name) $id
+            lappend idotherrefs($id) $name
+        }
+        catch {close $stashesidsrefsfd}
+    }
+
     set mainhead {}
     set mainheadid {}
     catch {
@@ -11549,7 +11575,7 @@ proc create_prefs_page {w} {
 }
 
 proc prefspage_general {notebook} {
-    global NS maxwidth maxgraphpct showneartags showlocalchanges
+    global NS maxwidth maxgraphpct showneartags showlocalchanges showallstashes
     global tabstop limitdiffs autoselect autosellen extdifftool perfile_attrs
     global hideremotes want_ttk have_ttk maxrefs web_browser
 
@@ -11575,6 +11601,9 @@ proc prefspage_general {notebook} {
     ${NS}::checkbutton $page.hideremotes -text [mc "Hide remote refs"] \
         -variable hideremotes
     grid x $page.hideremotes -sticky w
+    ${NS}::checkbutton $page.showallstashes -text [mc "Show all stashes"] \
+        -variable showallstashes
+    grid x $page.showallstashes -sticky w
 
     ${NS}::label $page.ddisp -text [mc "Diff display options"]
     grid $page.ddisp - -sticky w -pady 10
@@ -11696,7 +11725,7 @@ proc prefspage_fonts {notebook} {
 
 proc doprefs {} {
     global maxwidth maxgraphpct use_ttk NS
-    global oldprefs prefstop showneartags showlocalchanges
+    global oldprefs prefstop showneartags showlocalchanges showallstashes
     global uicolor bgcolor fgcolor ctext diffcolors selectbgcolor markbgcolor
     global tabstop limitdiffs autoselect autosellen extdifftool perfile_attrs
     global hideremotes want_ttk have_ttk
@@ -11707,7 +11736,7 @@ proc doprefs {} {
         raise $top
         return
     }
-    foreach v {maxwidth maxgraphpct showneartags showlocalchanges \
+    foreach v {maxwidth maxgraphpct showneartags showlocalchanges showallstashes \
                    limitdiffs tabstop perfile_attrs hideremotes want_ttk} {
         set oldprefs($v) [set $v]
     }
@@ -11845,7 +11874,7 @@ proc prefscan {} {
 
 proc prefsok {} {
     global maxwidth maxgraphpct
-    global oldprefs prefstop showneartags showlocalchanges
+    global oldprefs prefstop showneartags showlocalchanges showallstashes
     global fontpref mainfont textfont uifont
     global limitdiffs treediffs perfile_attrs
     global hideremotes
@@ -11880,6 +11909,9 @@ proc prefsok {} {
         } else {
             dohidelocalchanges
         }
+    }
+    if {$showallstashes != $oldprefs(showallstashes)} {
+        reloadcommits
     }
     if {$limitdiffs != $oldprefs(limitdiffs) ||
         ($perfile_attrs && !$oldprefs(perfile_attrs))} {
@@ -12292,7 +12324,7 @@ if {[catch {package require Tk 8.4} err]} {
 }
 
 # on OSX bring the current Wish process window to front
-if {[tk windowingsystem] eq "aqua"} {
+if {[tk windowingsystem] eq "aqxua"} {
     exec osascript -e [format {
         tell application "System Events"
             set frontmost of processes whose unix id is %d to true
@@ -12372,6 +12404,7 @@ set maxrefs 20
 set visiblerefs {"master"}
 set maxlinelen 200
 set showlocalchanges 1
+set showallstashes 0
 set limitdiffs 1
 set datetimeformat "%Y-%m-%d %H:%M:%S"
 set autoselect 1
@@ -12472,7 +12505,7 @@ config_check_tmp_exists 50
 set config_variables {
     mainfont textfont uifont tabstop findmergefiles maxgraphpct maxwidth
     cmitmode wrapcomment autoselect autosellen showneartags maxrefs visiblerefs
-    hideremotes showlocalchanges datetimeformat limitdiffs uicolor want_ttk
+    hideremotes showlocalchanges showallstashes datetimeformat limitdiffs uicolor want_ttk
     bgcolor fgcolor uifgcolor uifgdisabledcolor colors diffcolors mergecolors
     markbgcolor diffcontext selectbgcolor foundbgcolor currentsearchhitbgcolor
     extdifftool perfile_attrs headbgcolor headfgcolor headoutlinecolor
@@ -12661,7 +12694,7 @@ catch {
     wm iconphoto . -default gitlogo gitlogo32
 }
 # wait for the window to become visible
-tkwait visibility .
+if {![winfo viewable .]} {tkwait visibility .}
 set_window_title
 update
 readrefs
