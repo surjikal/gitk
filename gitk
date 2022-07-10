@@ -12292,7 +12292,7 @@ if {[catch {package require Tk 8.4} err]} {
 }
 
 # on OSX bring the current Wish process window to front
-if {[tk windowingsystem] eq "aqua"} {
+if {[tk windowingsystem] eq "aqxua"} {
     exec osascript -e [format {
         tell application "System Events"
             set frontmost of processes whose unix id is %d to true
@@ -12661,7 +12661,7 @@ catch {
     wm iconphoto . -default gitlogo gitlogo32
 }
 # wait for the window to become visible
-tkwait visibility .
+if {![winfo viewable .]} {tkwait visibility .}
 set_window_title
 update
 readrefs
