@@ -10060,8 +10060,9 @@ proc resethead {} {
     pack $w.ok -side left -fill x -padx 20 -pady 20
     ttk::button $w.cancel -text [mc Cancel] -command "destroy $w"
     bind $w <Key-Escape> [list destroy $w]
+    bind $w <Key-Return> "set confirm_ok 1; destroy $w"
     pack $w.cancel -side right -fill x -padx 20 -pady 20
-    bind $w <Visibility> "grab $w; focus $w"
+    bind $w <Visibility> "grab $w; focus $w.ok"
     tkwait window $w
     if {!$confirm_ok} return
     if {[catch {set fd [safe_open_command_redirect \
